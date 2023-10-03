@@ -2,7 +2,6 @@ package com.rpozzi.kafkastreams.service;
 
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
-
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -13,12 +12,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rpozzi.kafkastreams.dto.Sensor;
-
 
 @Service
 public class TemperatureStreamsService {
@@ -29,7 +26,7 @@ public class TemperatureStreamsService {
 	private String kafkaStreamsAppId;
 	@Value(value = "${kafka.topic.temperatures}")
 	private String temperatureKafkaTopic;
-	
+	private int highTemperatureThreshold = 25;
 
 	public void process() {
 		// ################################################################################
@@ -46,14 +43,23 @@ public class TemperatureStreamsService {
 		
 		// Read Stream from input Kafka Topic ${kafka.topic.temperatures} (see application.properties for mapping)
 		logger.info("Streaming from '" + temperatureKafkaTopic + "' Kafka topic ...");
-		KStream<String, String> temperatures = builder.stream(temperatureKafkaTopic);
+		KStream<String, String> sensorData = builder.stream(temperatureKafkaTopic);
 		
-		/* TODO - START */
-		// ** FOR DEBUG PURPOSES ONLY ** Print messages from input Kafka Topic ${kafka.topic.temperatures} 
-		temperatures.foreach((key, value) -> logger.debug(key + " => " + value + " -- Temperature = " + consumeMsg(value).getTemperature()));
+		/* ##### Stream Transformations - START ##### */
+		// ===== Print messages from input Kafka Topic ${kafka.topic.temperatures} 
+		sensorData.foreach((key, value) -> logger.debug(key + " => " + value));
+		
+		// ===== Apply mapValues transformation
+		KStream<String, Integer> temperatures = sensorData.mapValues(value -> consumeMsg(value).getTemperature());
+		temperatures.foreach((key, value) -> logger.debug("mapValues --> TEMPERATURE = " + value));
+		
+		// ===== Apply filter transformation
+		KStream<String, Integer> highTemperatures = temperatures.filter((key, value) -> value > highTemperatureThreshold);
+		highTemperatures.foreach((key, value) -> logger.debug("filter (higher than " + highTemperatureThreshold + " degrees) --> !!! HIGH TEMPERATURE !!! -- " + value));
 		
 		
-		/* TODO - END */
+		
+		/* ##### Stream Transformations - END ##### */
 
 		final Topology topology = builder.build();
 		logger.debug("Printing Topology ...");
@@ -88,6 +94,7 @@ public class TemperatureStreamsService {
 			logger.debug("Message read : " + in);
 			sensor = mapper.readValue(in, Sensor.class);
 			logger.info("Temperature = " + sensor.getTemperature() + " - Humidity = " + sensor.getHumidity());
+			
 		} catch (JsonMappingException e) {
 			logger.error(e.getLocalizedMessage());
 			e.printStackTrace();
@@ -95,6 +102,7 @@ public class TemperatureStreamsService {
 			logger.error(e.getLocalizedMessage());
 			e.printStackTrace();
 		}
+		logger.debug("<=== returning Sensor data ...");
 		return sensor;
 	}
 
