@@ -10,6 +10,13 @@
 ## Introduction
 This repository holds the code for experimentations on KafkaStreams technology.
 
+It implements a sample Kafka Streams application which uses a simulated sensor application (refer to **https://github.com/robipozzi/robipozzi-kafka-producer-java**) that produces temperature and humidity data and publish to Kafka 
+topic. 
+
+The application is depicted at high level in the following picture.
+
+![](img/kafkastreams-app.png)
+
 To access the code, open a Terminal and start by cloning this repository with the following commands:
 
 ```
