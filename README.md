@@ -4,7 +4,6 @@
     - [Run Kafka cluster on local environment](#run-kafka-cluster-on-local-environment)
     - [Run Kafka cluster on Confluent](#run-kafka-cluster-on-confluent)
     - [Create, delete and describe Kafka topics](#create-delete-and-describe-kafka-topics)
-    - [Producers and consumers using Kafka command line tools](#producers-and-consumers-using-kafka-command-line-tools)
 - [How the application works](#how-the-application-works)
     
 ## Introduction
@@ -45,9 +44,6 @@ https://github.com/robipozzi/robipozzi-kafka#run-Kafka-cluster-on-confluent for 
 ### Create, delete and describe Kafka topics
 Once the Kafka cluster has been setup, you can find details on how to manage topics (i.e.: create, delete, ...) at 
 https://github.com/robipozzi/robipozzi-kafka#create-delete-and-describe-kafka-topics
-
-### Producers and consumers using Kafka command line tools
-[TODO]
 
 ## How the application works
 [TODO]# robipozzi-kafkastream-temperatures
