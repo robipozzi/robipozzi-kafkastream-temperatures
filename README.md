@@ -46,4 +46,4 @@ Once the Kafka cluster has been setup, you can find details on how to manage top
 https://github.com/robipozzi/robipozzi-kafka#create-delete-and-describe-kafka-topics
 
 ## How the application works
-[TODO]# robipozzi-kafkastream-temperatures
+[TODO]

@@ -1,5 +1,6 @@
 package com.rpozzi.kafkastreams.service;
 
+import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import org.apache.kafka.common.serialization.Serdes;
@@ -8,6 +9,9 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.TimeWindows;
+import org.apache.kafka.streams.kstream.Windowed;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +30,9 @@ public class TemperatureStreamsService {
 	private String kafkaStreamsAppId;
 	@Value(value = "${kafka.topic.temperatures}")
 	private String temperatureKafkaTopic;
-	private int highTemperatureThreshold = 25;
+	private int windowSizeMinutes = 1;
+	private int gracePeriodMinutes = 1;
+	private int highTemperatureThreshold = 23;
 
 	public void process() {
 		// ################################################################################
@@ -44,23 +50,52 @@ public class TemperatureStreamsService {
 		// Read Stream from input Kafka Topic ${kafka.topic.temperatures} (see application.properties for mapping)
 		logger.info("Streaming from '" + temperatureKafkaTopic + "' Kafka topic ...");
 		KStream<String, String> sensorData = builder.stream(temperatureKafkaTopic);
-		
-		/* ##### Stream Transformations - START ##### */
-		// ===== Print messages from input Kafka Topic ${kafka.topic.temperatures} 
+		// ===== Print messages from sensorData Stream (i.e.: messages published to input Kafka Topic ${kafka.topic.temperatures}) 
 		sensorData.foreach((key, value) -> logger.debug(key + " => " + value));
+				
+		/* ******************************************************************************************** */
+		/* ***** Stream Transformations to calculate Average Temperature in a Time Window - START ***** */
+		/* ******************************************************************************************** */
 		
-		// ===== Apply mapValues transformation
+		// ===== Apply mapValues transformation to extract temperature data from input messages
 		KStream<String, Integer> temperatures = sensorData.mapValues(value -> consumeMsg(value).getTemperature());
-		temperatures.foreach((key, value) -> logger.debug("mapValues --> TEMPERATURE = " + value));
+		temperatures.foreach((key, value) -> logger.debug("apply mapValues() to extract temperature --> TEMPERATURE = " + value));
 		
-		// ===== Apply filter transformation
-		KStream<String, Integer> highTemperatures = temperatures.filter((key, value) -> value > highTemperatureThreshold);
-		highTemperatures.foreach((key, value) -> logger.debug("filter (higher than " + highTemperatureThreshold + " degrees) --> !!! HIGH TEMPERATURE !!! -- " + value));
+		// A tumbling time window with a size of 1 minute (and, by definition, an implicit advance interval of 1 minute), and grace period of 1 minute.
+		Duration windowSize = Duration.ofMinutes(windowSizeMinutes);
+		Duration gracePeriod = Duration.ofMinutes(gracePeriodMinutes);
 		
+		// Calculate the average temperature in a 1-minute tumbling window
+		//   - apply groupByKey to group temperature data (since the key is always the same, it groups every temperature in the defined time window)
+		//   - aggregate temperature data in the time window (uses TemperatureAggregate custom class, that exposes 2 convenient methods
+		//		--> add(): which sums temperature data and increment the count of temperature data points coming in
+		//		--> getAverage(): which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
+		//   - apply mapValues to produce a record with the same key and average temperature as the value (as calculated by TemperatureAggregate.getAverage()) 
+		KStream<Windowed<String>, Double> averageTemperatureStream = temperatures
+			.groupByKey() /* Key in the original message is always the same, so we can group on it directly */
+			.windowedBy(TimeWindows.ofSizeWithNoGrace(windowSize))
+			.aggregate(
+				() -> new TemperatureAggregate(0, 0), /* initializer */
+				(key, temperature, temperatureAggregate) -> temperatureAggregate.add(temperature), /* adder */
+				Materialized.with(Serdes.String(), new TemperatureAggregateSerde())
+			)
+			.mapValues((windowedKey, aggregate) -> aggregate.getAverage())
+			.toStream();
+		averageTemperatureStream.foreach((key, value) -> logger.info("===> AVERAGE TEMPERATURE = " + value));
 		
+		/* ****************************************************************************************** */
+		/* ***** Stream Transformations to calculate Average Temperature in a Time Window - END ***** */
+		/* ****************************************************************************************** */
 		
-		/* ##### Stream Transformations - END ##### */
-
+		// ===== Apply filter transformation to select average temperatures higher than 22°
+		KStream<Windowed<String>, Double> highTemperatures = averageTemperatureStream.filter((key, value) -> value > highTemperatureThreshold);
+		highTemperatures.foreach((key, value) -> logger.info("Average temperature is higher than " + highTemperatureThreshold + "° --> !!! HIGH TEMPERATURE !!! -- " + value));
+		// ===== Print messages from highTemperatures Stream 
+		highTemperatures.foreach((key, value) -> logger.debug(key + " => " + value));
+		
+		/* **************************************** */
+		/* ***** Run Streams Topology - START ***** */
+		/* **************************************** */
 		final Topology topology = builder.build();
 		logger.debug("Printing Topology ...");
 		logger.debug(topology.describe().toString());
@@ -83,6 +118,9 @@ public class TemperatureStreamsService {
 			System.exit(1);
 		}
 		System.exit(0);
+		/* ************************************** */
+		/* ***** Run Streams Topology - END ***** */
+		/* ************************************** */
 	}
 	
 	private Sensor consumeMsg(String in) {
