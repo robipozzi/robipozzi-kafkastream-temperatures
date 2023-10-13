@@ -51,6 +51,7 @@ The application implements Kafka Streams that reads temperature and humidity dat
  
 The code for this application is based on:
 - **Maven**: here is the **[POM](pom.xml)** that defines project configuration; the library dependencies section is reported here below
+
 ```
 <dependencies>
 	<dependency>
@@ -75,6 +76,7 @@ The code for this application is based on:
 	
 - **Spring Boot 3.1.2**: the usage of Spring Boot framework v3.1.2, with all its implicit dependencies, is declared in the same **[POM](pom.xml)**; 
 as any Spring Boot application, it has a specific configuration file called **[application.properties](src/main/resources/application.properties)**
+
 ```
 <parent>
 	<groupId>org.springframework.boot</groupId>
@@ -88,6 +90,7 @@ as any Spring Boot application, it has a specific configuration file called **[a
 
 Every Spring Boot application needs to have a main class annotated as **@SpringBootApplication**; our application main class is 
 **[KafkaStreamsApp](src/main/java/com/rpozzi/kafkastreams/KafkaStreamsApp.java)**, whose code is reported here below for reference
+
 ```
 @SpringBootApplication
 @ComponentScan(basePackages = { "com.rpozzi.kafkastreams" })
@@ -135,16 +138,91 @@ once the application is started via *main()* method, the *commandLineRunner()* m
 But where **temperatureStreamsSrv** comes from? Well it is just an instance of 
 **[TemperatureStreamsService](src/main/java/com/rpozzi/kafkastreams/service/TemperatureStreamsService.java)** class, whose code is reported below 
 for reference, injected via the following Spring Boot annotation
+
 ```
 @Autowired
 private TemperatureStreamsService temperatureStreamsSrv;
 ```
+
 The **[TemperatureStreamsService](src/main/java/com/rpozzi/kafkastreams/service/TemperatureStreamsService.java)** class has a *process()* method 
 where Kafka Stream DSL is used to create and run a Stream Processor Topology that does the following:
 
 - reads input records, made of JSON formatted messages with temperature and humidity data 
-- extracst temperature data
-- aggregates temperature over a 1-minute time window
-- calculates average temperature over the 1-minute time window 
+- extracts temperature data
+- aggregates temperatures over a 1-minute time window
+- calculates average temperature over the 1-minute time window
+- select high temperatures (i.e.: average temperatures higher than an established threshold)
+
+Let's see how Kafka Streams works, stepping into *process()* method line by line.
+
+First we need to create a **java.util.Properties** instance and populate it with appropriate info to:
+
+- instruct the application to connect to a Kafka cluster (see how StreamsConfig.BOOTSTRAP_SERVERS_CONFIG key is set with the value of Kafka Bootstrap Servers URL);
+- define Kafka messages key and value Serializer and Deserializer.
+
+```
+Properties props = new Properties();
+props.put(StreamsConfig.APPLICATION_ID_CONFIG, kafkaStreamsAppId);
+props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootstrapServers);
+props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+```
+
+Then we need to:
+
+- instantiate a **StreamsBuilder** class;
+- create an instance of **KStream**, calling the StreamsBuilder.stream(<kafka_topic>) method
+
+```
+// Initialize StreamsBuilder
+final StreamsBuilder builder = new StreamsBuilder();
+		
+// Read Stream from input Kafka Topic ${kafka.topic.temperatures} (see application.properties for mapping)
+KStream<String, String> sensorData = builder.stream(temperatureKafkaTopic);
+```
+
+The above code creates a *KStream* instance called *sensorData*, bound to a specific Kafka topic: the data published to that topic are interpreted as a record stream and several transformations can then be applied to it.
+
+The data published to Kafka topic are in JSON format (see the code for a Kafka producer simulating a temperature and humidity sensor at 
+**[robipozzi-kafka-producer-java](https://github.com/robipozzi/robipozzi-kafka-producer-java)** GitHub repo and look specifically how
+**[TemperatureSensorSimulationService](https://github.com/robipozzi/robipozzi-kafka-producer-java/blob/main/src/main/java/com/rpozzi/kafka/service/TemperatureSensorSimulationService.java)** works).
+
+So, the first transformation is aimed at extracting the temperature data from the message, and this is done by using *mapValues()* Kafka Streams stateless transformation as it can be seen below
+
+```
+// ===== Apply mapValues transformation to extract temperature data from input messages
+KStream<String, Integer> temperatures = sensorData.mapValues(value -> consumeMsg(value).getTemperature());
+```
+
+In Kafka Streams DSL, *mapValues()* takes one record and produces one record, modifying the value of the message, while retaining the key of the original record.
+
+As it can be seen, the new value is set by invoking *consumeMsg(value)* method (see code snippet below), which reads the JSON message and deserializes it
+into **[Sensor](https://github.com/robipozzi/robipozzi-kafkastreams-temperatures/blob/main/src/main/java/com/rpozzi/kafkastreams/dto/Sensor.java)** object, that 
+holds a *temperature* property, accessible via its proper getter method.
+
+```
+private Sensor consumeMsg(String in) {
+	logger.debug("===> running consumeMsg(String in) method ...");
+	logger.info("Reading from '" + temperatureKafkaTopic + "' Kafka topic (using SpringBoot Kafka APIs) ...");
+	Sensor sensor = null;
+	ObjectMapper mapper = new ObjectMapper();
+	try {
+		logger.debug("Message read : " + in);
+		sensor = mapper.readValue(in, Sensor.class);
+		logger.info("Temperature = " + sensor.getTemperature() + " - Humidity = " + sensor.getHumidity());
+	} catch (JsonMappingException e) {
+		logger.error(e.getLocalizedMessage());
+		e.printStackTrace();
+	} catch (JsonProcessingException e) {
+		logger.error(e.getLocalizedMessage());
+		e.printStackTrace();
+	}
+	logger.debug("<=== returning Sensor data ...");
+	return sensor;
+}
+```
+
+The *mapValues()* method, by its nature, creates a new stream, holding new record stream data with the re-mapped message.
+ 
 
 [TODO]
