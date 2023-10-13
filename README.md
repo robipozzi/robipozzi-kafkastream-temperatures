@@ -181,7 +181,7 @@ final StreamsBuilder builder = new StreamsBuilder();
 KStream<String, String> sensorData = builder.stream(temperatureKafkaTopic);
 ```
 
-The above code creates a *KStream* instance called *sensorData*, bound to a specific Kafka topic: the data published to that topic are interpreted as a record stream and several transformations can then be applied to it.
+The above code creates a *KStream* instance called *sensorData*, bound to a specific Kafka topic: the data published to that topic are interpreted as a record stream and several transformations can then be applied to it, using Kafka Streams DSL constructs.
 
 The data published to Kafka topic are in JSON format (see the code for a Kafka producer simulating a temperature and humidity sensor at 
 **[robipozzi-kafka-producer-java](https://github.com/robipozzi/robipozzi-kafka-producer-java)** GitHub repo and look specifically how
@@ -224,5 +224,29 @@ private Sensor consumeMsg(String in) {
 
 The *mapValues()* method, by its nature, creates a new stream, holding new record stream data with the re-mapped message.
  
+Now that we have a new stream, named *temperatures*, we will apply some further transformations on it 
+
+```
+// A tumbling time window with a size of 1 minute (and, by definition, an implicit advance interval of 1 minute), and grace period of 1 minute.
+Duration windowSize = Duration.ofMinutes(windowSizeMinutes);
+Duration gracePeriod = Duration.ofMinutes(gracePeriodMinutes);
+		
+// Calculate the average temperature in a 1-minute tumbling window
+//   - apply groupByKey to group temperature data (since the key is always the same, it groups every temperature in the defined time window)
+//   - aggregate temperature data in the time window (uses TemperatureAggregate custom class, that exposes 2 convenient methods
+//		--> add(): which sums temperature data and increment the count of temperature data points coming in
+//		--> getAverage(): which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
+//   - apply mapValues to produce a record with the same key and average temperature as the value (as calculated by TemperatureAggregate.getAverage()) 
+KStream<Windowed<String>, Double> averageTemperatureStream = temperatures
+	.groupByKey() /* Key in the original message is always the same, so we can group on it directly */
+	.windowedBy(TimeWindows.ofSizeWithNoGrace(windowSize))
+	.aggregate(
+		() -> new TemperatureAggregate(0, 0), /* initializer */
+		(key, temperature, temperatureAggregate) -> temperatureAggregate.add(temperature), /* adder */
+		Materialized.with(Serdes.String(), new TemperatureAggregateSerde())
+	)
+	.mapValues((windowedKey, aggregate) -> aggregate.getAverage())
+	.toStream();
+```
 
 [TODO]
