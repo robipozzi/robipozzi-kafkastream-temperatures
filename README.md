@@ -1,4 +1,4 @@
-# KafkaStreams Temperatures handling
+# Kafka Streams Temperatures handling
 - [Introduction](#introduction)
 - [Setup and run Kafka](#setup-and-run-kafka)
     - [Run Kafka cluster on local environment](#run-kafka-cluster-on-local-environment)
@@ -7,7 +7,7 @@
 - [How the application works](#how-the-application-works)
     
 ## Introduction
-This repository holds the code for experimentations on KafkaStreams technology.
+This repository holds the code for experimentations on Kafka Streams technology.
 
 It implements a sample Kafka Streams application which continuously reads data published to *temperatures* Kafka topic, manipulate, analyze and act upon
 manipulated data.
@@ -46,4 +46,105 @@ Once the Kafka cluster has been setup, you can find details on how to manage top
 https://github.com/robipozzi/robipozzi-kafka#create-delete-and-describe-kafka-topics
 
 ## How the application works
+The application implements Kafka Streams that reads temperature and humidity data published to a Kafka topic called *temperature* 
+(configurable in the **[application.properties](src/main/resources/application.properties)** configuration file.
+ 
+The code for this application is based on:
+- **Maven**: here is the **[POM](pom.xml)** that defines project configuration; the library dependencies section is reported here below
+```
+<dependencies>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-json</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.apache.kafka</groupId>
+		<artifactId>kafka-streams</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.apache.kafka</groupId>
+		<artifactId>kafka-clients</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-test</artifactId>
+		<scope>test</scope>
+	</dependency>
+</dependencies>
+```
+	
+- **Spring Boot 3.1.2**: the usage of Spring Boot framework v3.1.2, with all its implicit dependencies, is declared in the same **[POM](pom.xml)**; 
+as any Spring Boot application, it has a specific configuration file called **[application.properties](src/main/resources/application.properties)**
+```
+<parent>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-parent</artifactId>
+	<version>3.1.2</version>
+	<relativePath/> <!-- lookup parent from repository -->
+</parent>
+```
+
+- **Kafka and Kafka Streams libraries**: they are injected as Spring dependencies, as it can be seen in the **[POM](pom.xml)** dependencies section.
+
+Every Spring Boot application needs to have a main class annotated as **@SpringBootApplication**; our application main class is 
+**[KafkaStreamsApp](src/main/java/com/rpozzi/kafkastreams/KafkaStreamsApp.java)**, whose code is reported here below for reference
+```
+@SpringBootApplication
+@ComponentScan(basePackages = { "com.rpozzi.kafkastreams" })
+public class KafkaStreamsApp {
+	private static final Logger logger = LoggerFactory.getLogger(KafkaStreamsApp.class);
+	@Value(value = "${spring.kafka.bootstrap-servers}")
+	private String kafkaBootstrapServers;
+	@Autowired
+	private TemperatureStreamsService temperatureStreamsSrv;
+
+	public static void main(String[] args) {
+		SpringApplication.run(KafkaStreamsApp.class, args);
+	}
+
+	@Bean
+	public CommandLineRunner commandLineRunner(ApplicationContext ctx) {
+		return args -> {
+			logger.debug("Let's inspect the beans provided by Spring Boot:");
+			logger.debug("************** Spring Boot beans - START **************");
+			String[] beanNames = ctx.getBeanDefinitionNames();
+			Arrays.sort(beanNames);
+			for (String beanName : beanNames) {
+				logger.debug(beanName);
+			}
+			logger.debug("************** Spring Boot beans - END **************");
+			
+			logger.debug("Print application configuration parameters");
+			logger.debug("************** Application configuration parameters - START **************");
+			logger.debug("Kafka Bootstrap Servers :  " + kafkaBootstrapServers);
+			logger.debug("************** Application configuration parameters - END **************");
+			
+			logger.info("Application " + ctx.getId() + " started !!!");
+
+			// ############### Kafka Streams - Temperature streams service ###############
+			temperatureStreamsSrv.process();
+		};
+	}
+
+}
+```
+
+It is out of scope of this doc to explain in detail how Spring Boot works, for our purposes let's just concentrate on the piece of code where the "magic" happens:
+once the application is started via *main()* method, the *commandLineRunner()* method is kicked in, where **temperatureStreamsSrv.process()** is called.
+
+But where **temperatureStreamsSrv** comes from? Well it is just an instance of 
+**[TemperatureStreamsService](src/main/java/com/rpozzi/kafkastreams/service/TemperatureStreamsService.java)** class, whose code is reported below 
+for reference, injected via the following Spring Boot annotation
+```
+@Autowired
+private TemperatureStreamsService temperatureStreamsSrv;
+```
+The **[TemperatureStreamsService](src/main/java/com/rpozzi/kafkastreams/service/TemperatureStreamsService.java)** class has a *process()* method 
+where Kafka Stream DSL is used to create and run a Stream Processor Topology that does the following:
+
+- reads input records, made of JSON formatted messages with temperature and humidity data 
+- extracst temperature data
+- aggregates temperature over a 1-minute time window
+- calculates average temperature over the 1-minute time window 
+
 [TODO]
