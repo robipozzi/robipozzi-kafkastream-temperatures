@@ -9,7 +9,7 @@
 ## Introduction
 This repository holds the code for experimentations on Kafka Streams technology.
 
-It implements a sample Kafka Streams application which continuously reads data published to *temperatures* Kafka topic, manipulate, analyze and act upon
+It implements a sample Kafka Streams application which continuously reads data published to *temperatures* Kafka topic, manipulates, analyzes and acts upon
 manipulated data.
 
 The Kafka Streams application is depicted at high level in the following picture.
@@ -46,8 +46,9 @@ Once the Kafka cluster has been setup, you can find details on how to manage top
 https://github.com/robipozzi/robipozzi-kafka#create-delete-and-describe-kafka-topics
 
 ## How the application works
-The application implements Kafka Streams that reads temperature and humidity data published to a Kafka topic called *temperature* 
-(configurable in the **[application.properties](src/main/resources/application.properties)** configuration file.
+The application uses Kafka Streams DSL to do the following:
+* read temperature and humidity data published to a Kafka topic called *temperature* (configurable in the **[application.properties](src/main/resources/application.properties)** configuration file)
+* apply several transformations to extract temperature data, calculate average temperature over a time window and act when average temperature is over a threshold.
  
 The code for this application is based on:
 - **Maven**: here is the **[POM](pom.xml)** that defines project configuration; the library dependencies section is reported here below
@@ -222,7 +223,7 @@ private Sensor consumeMsg(String in) {
 }
 ```
 
-The *mapValues()* method, by its nature, creates a new stream, holding new record stream data with the re-mapped message.
+The *mapValues()* method, by its nature, creates a new stream, holding new record stream data with the transformed message.
  
 Now that we have a new stream, named *temperatures*, where temperature data flow, we will apply some further transformations on it to calculate the average
 temperature over a 1-minute time window, as it can be seen in code snippet below:
@@ -248,14 +249,14 @@ KStream<Windowed<String>, Double> averageTemperatureStream = temperatures
 
 The code above applies the following sequence of transformations: 
 
-1. apply *groupByKey* stateless transformation to group temperature data (since the key is always the same, it groups every temperature in the defined time window)
-2. apply *aggregate* stateful transformation temperature data in the time window (it uses *add()* method of *TemperatureAggregate* class to sum up all the temperatures in the time window)
-3. apply *mapValues* to produce a record with the same key and average temperature as the value (as calculated by *getAverage()* method of *TemperatureAggregate* class)
-4. call *toStream()* method to stream the transformed records to a new KStream named *averageTemperatureStream*
+1. apply **groupByKey** stateless transformation to group temperature data (since the key is always the same, it groups every temperature in the defined time window)
+2. apply **aggregate** stateful transformation to aggregate temperature data in the time window (it uses **add()** method of **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/TemperatureAggregate.java)** class to sum up all the temperatures in the time window)
+3. apply **mapValues** to produce a record with the same key and average temperature as the value (as calculated by **getAverage()** method of **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/TemperatureAggregate.java)** class)
+4. call **toStream()** method to stream the transformed records to a new KStream named *averageTemperatureStream*
 
 The **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/TemperatureAggregate.java)** class exposes 2 convenient methods
-* *add()*: which sums temperature data and increment the count of temperature data points coming in
-* *getAverage()*: which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
+* **add()**: which sums temperature data and increment the count of temperature data points coming in
+* **getAverage()**: which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
 
 
 [TODO]
