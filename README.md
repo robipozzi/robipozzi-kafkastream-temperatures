@@ -185,7 +185,7 @@ The above code creates a *KStream* instance called *sensorData*, bound to a spec
 
 The data published to Kafka topic are in JSON format (see the code for a Kafka producer simulating a temperature and humidity sensor at 
 **[robipozzi-kafka-producer-java](https://github.com/robipozzi/robipozzi-kafka-producer-java)** GitHub repo and look specifically how
-**[TemperatureSensorSimulationService](https://github.com/robipozzi/robipozzi-kafka-producer-java/blob/main/src/main/java/com/rpozzi/kafka/service/TemperatureSensorSimulationService.java)** works).
+**[TemperatureSensorSimulationService](src/main/java/com/rpozzi/kafka/service/TemperatureSensorSimulationService.java)** works).
 
 The first transformation is aimed at extracting the temperature data from the message, and this is done by using *mapValues()* Kafka Streams stateless transformation as it can be seen below
 
@@ -251,9 +251,9 @@ The code above applies the following sequence of transformations:
 1. apply *groupByKey* stateless transformation to group temperature data (since the key is always the same, it groups every temperature in the defined time window)
 2. apply *aggregate* stateful transformation temperature data in the time window (it uses *add()* method of *TemperatureAggregate* class to sum up all the temperatures in the time window)
 3. apply *mapValues* to produce a record with the same key and average temperature as the value (as calculated by *getAverage()* method of *TemperatureAggregate* class)
-4. call *toStream()* method 
+4. call *toStream()* method to stream the transformed records to a new KStream named *averageTemperatureStream*
 
-The **[TemperatureAggregate]()** class exposes 2 convenient methods
+The **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/TemperatureAggregate.java)** class exposes 2 convenient methods
 * *add()*: which sums temperature data and increment the count of temperature data points coming in
 * *getAverage()*: which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
 
