@@ -132,8 +132,7 @@ public class KafkaStreamsApp {
 }
 ```
 
-It is out of scope of this doc to explain in detail how Spring Boot works, for our purposes let's just concentrate on the piece of code where the "magic" happens:
-once the application is started via *main()* method, the *commandLineRunner()* method is kicked in, where **temperatureStreamsSrv.process()** is called.
+It is out of scope of this doc to explain in detail how Spring Boot works, let's just say that once the application is started via *main()* method, the *commandLineRunner()* method is kicked in, where **temperatureStreamsSrv.process()** is called.
 
 But where **temperatureStreamsSrv** comes from? Well it is just an instance of 
 **[TemperatureStreamsService](src/main/java/com/rpozzi/kafkastreams/service/TemperatureStreamsService.java)** class, whose code is reported below 
@@ -145,19 +144,20 @@ private TemperatureStreamsService temperatureStreamsSrv;
 ```
 
 The **[TemperatureStreamsService](src/main/java/com/rpozzi/kafkastreams/service/TemperatureStreamsService.java)** class has a *process()* method 
-where Kafka Stream DSL is used to create and run a Stream Processor Topology that does the following:
+where Kafka Streams DSL is used to create and run a Stream Processor Topology that does the following:
 
 - reads input records, made of JSON formatted messages with temperature and humidity data 
 - extracts temperature data
 - aggregates temperatures over a 1-minute time window
 - calculates average temperature over the 1-minute time window
 - select high temperatures (i.e.: average temperatures higher than an established threshold)
+- once average temperature is over a threshold, an action is triggered
 
 Let's see how Kafka Streams works, stepping into *process()* method line by line.
 
 First we need to create a **java.util.Properties** instance and populate it with appropriate info to:
 
-- instruct the application to connect to a Kafka cluster (see how StreamsConfig.BOOTSTRAP_SERVERS_CONFIG key is set with the value of Kafka Bootstrap Servers URL);
+- instruct the application to connect to a Kafka cluster (see how *StreamsConfig.BOOTSTRAP_SERVERS_CONFIG* key is set with the value of Kafka Bootstrap Servers URL);
 - define Kafka messages key and value Serializer and Deserializer.
 
 ```
@@ -171,7 +171,7 @@ props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getCla
 Then we need to:
 
 - instantiate a **StreamsBuilder** class;
-- create an instance of **KStream**, calling the StreamsBuilder.stream(<kafka_topic>) method
+- create an instance of **KStream**, calling the *StreamsBuilder.stream(<kafka_topic>)* method
 
 ```
 // Initialize StreamsBuilder
@@ -187,7 +187,7 @@ The data published to Kafka topic are in JSON format (see the code for a Kafka p
 **[robipozzi-kafka-producer-java](https://github.com/robipozzi/robipozzi-kafka-producer-java)** GitHub repo and look specifically how
 **[TemperatureSensorSimulationService](https://github.com/robipozzi/robipozzi-kafka-producer-java/blob/main/src/main/java/com/rpozzi/kafka/service/TemperatureSensorSimulationService.java)** works).
 
-So, the first transformation is aimed at extracting the temperature data from the message, and this is done by using *mapValues()* Kafka Streams stateless transformation as it can be seen below
+The first transformation is aimed at extracting the temperature data from the message, and this is done by using *mapValues()* Kafka Streams stateless transformation as it can be seen below
 
 ```
 // ===== Apply mapValues transformation to extract temperature data from input messages
@@ -197,7 +197,7 @@ KStream<String, Integer> temperatures = sensorData.mapValues(value -> consumeMsg
 In Kafka Streams DSL, *mapValues()* takes one record and produces one record, modifying the value of the message, while retaining the key of the original record.
 
 As it can be seen, the new value is set by invoking *consumeMsg(value)* method (see code snippet below), which reads the JSON message and deserializes it
-into **[Sensor](https://github.com/robipozzi/robipozzi-kafkastreams-temperatures/blob/main/src/main/java/com/rpozzi/kafkastreams/dto/Sensor.java)** object, that 
+into **[Sensor](src/main/java/com/rpozzi/kafkastreams/dto/Sensor.java)** object, that 
 holds a *temperature* property, accessible via its proper getter method.
 
 ```
@@ -224,7 +224,8 @@ private Sensor consumeMsg(String in) {
 
 The *mapValues()* method, by its nature, creates a new stream, holding new record stream data with the re-mapped message.
  
-Now that we have a new stream, named *temperatures*, we will apply some further transformations on it 
+Now that we have a new stream, named *temperatures*, where temperature data flow, we will apply some further transformations on it to calculate the average
+temperature over a 1-minute time window, as it can be seen in code snippet below:
 
 ```
 // A tumbling time window with a size of 1 minute (and, by definition, an implicit advance interval of 1 minute), and grace period of 1 minute.
@@ -232,14 +233,10 @@ Duration windowSize = Duration.ofMinutes(windowSizeMinutes);
 Duration gracePeriod = Duration.ofMinutes(gracePeriodMinutes);
 		
 // Calculate the average temperature in a 1-minute tumbling window
-//   - apply groupByKey to group temperature data (since the key is always the same, it groups every temperature in the defined time window)
-//   - aggregate temperature data in the time window (uses TemperatureAggregate custom class, that exposes 2 convenient methods
-//		--> add(): which sums temperature data and increment the count of temperature data points coming in
-//		--> getAverage(): which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
-//   - apply mapValues to produce a record with the same key and average temperature as the value (as calculated by TemperatureAggregate.getAverage()) 
+//    
 KStream<Windowed<String>, Double> averageTemperatureStream = temperatures
 	.groupByKey() /* Key in the original message is always the same, so we can group on it directly */
-	.windowedBy(TimeWindows.ofSizeWithNoGrace(windowSize))
+	.windowedBy(TimeWindows.ofSizeAndGrace(windowSize, gracePeriod))
 	.aggregate(
 		() -> new TemperatureAggregate(0, 0), /* initializer */
 		(key, temperature, temperatureAggregate) -> temperatureAggregate.add(temperature), /* adder */
@@ -248,5 +245,17 @@ KStream<Windowed<String>, Double> averageTemperatureStream = temperatures
 	.mapValues((windowedKey, aggregate) -> aggregate.getAverage())
 	.toStream();
 ```
+
+The code above applies the following sequence of transformations: 
+
+1. apply *groupByKey* stateless transformation to group temperature data (since the key is always the same, it groups every temperature in the defined time window)
+2. apply *aggregate* stateful transformation temperature data in the time window (it uses *add()* method of *TemperatureAggregate* class to sum up all the temperatures in the time window)
+3. apply *mapValues* to produce a record with the same key and average temperature as the value (as calculated by *getAverage()* method of *TemperatureAggregate* class)
+4. call *toStream()* method 
+
+The **[TemperatureAggregate]()** class exposes 2 convenient methods
+* *add()*: which sums temperature data and increment the count of temperature data points coming in
+* *getAverage()*: which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
+
 
 [TODO]

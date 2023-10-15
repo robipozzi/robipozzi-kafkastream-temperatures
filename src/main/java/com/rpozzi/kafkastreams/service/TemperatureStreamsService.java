@@ -73,7 +73,7 @@ public class TemperatureStreamsService {
 		//   - apply mapValues to produce a record with the same key and average temperature as the value (as calculated by TemperatureAggregate.getAverage()) 
 		KStream<Windowed<String>, Double> averageTemperatureStream = temperatures
 			.groupByKey() /* Key in the original message is always the same, so we can group on it directly */
-			.windowedBy(TimeWindows.ofSizeWithNoGrace(windowSize))
+			.windowedBy(TimeWindows.ofSizeAndGrace(windowSize, gracePeriod))
 			.aggregate(
 				() -> new TemperatureAggregate(0, 0), /* initializer */
 				(key, temperature, temperatureAggregate) -> temperatureAggregate.add(temperature), /* adder */
