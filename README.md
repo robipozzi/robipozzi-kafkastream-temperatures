@@ -9,7 +9,7 @@
 ## Introduction
 This repository holds the code for experimentations on Kafka Streams technology.
 
-It implements a sample Kafka Streams application which continuously reads data published to *temperatures* Kafka topic, manipulates, analyzes and acts upon
+It implements a sample Kafka Streams application which continuously reads data published to *temperatures* Kafka topic and then manipulates, analyzes and acts upon
 manipulated data.
 
 The Kafka Streams application is depicted at high level in the following picture.
