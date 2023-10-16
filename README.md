@@ -257,4 +257,4 @@ The **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/Tempe
 
 Notice that the *aggregate* transformation changes the data type of key and value, and this requires to specify Serdes explicitly
 * key Serdes is set to String (notice **Serdes.String()** in Materialized clause)
-* value Serdes is set to a custom class that serializes and deserializes *TemperatureAggregate* (see **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/TemperatureAggregate.java)** class)
+* value Serdes is set to a custom class that serializes and deserializes *TemperatureAggregate* (see **[TemperatureAggregateSerde](src/main/java/com/rpozzi/kafkastreams/service/TemperatureAggregateSerde.java)** class)
