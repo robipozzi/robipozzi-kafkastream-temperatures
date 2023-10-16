@@ -46,8 +46,8 @@ Once the Kafka cluster has been setup, you can find details on how to manage top
 https://github.com/robipozzi/robipozzi-kafka#create-delete-and-describe-kafka-topics
 
 ## How the application works
-The application uses Kafka Streams DSL to do the following:
-* read temperature and humidity data published to a Kafka topic called *temperature* (configurable in the **[application.properties](src/main/resources/application.properties)** configuration file)
+The application uses Kafka Streams DSL to implement the following scenario:
+* read temperature and humidity data published to a Kafka topic called *temperatures* (configurable in the **[application.properties](src/main/resources/application.properties)** configuration file)
 * apply several transformations to extract temperature data, calculate average temperature over a time window and act when average temperature is over a threshold.
  
 The code for this application is based on:
@@ -135,7 +135,7 @@ public class KafkaStreamsApp {
 
 It is out of scope of this doc to explain in detail how Spring Boot works, let's just say that once the application is started via *main()* method, the *commandLineRunner()* method is kicked in, where **temperatureStreamsSrv.process()** is called.
 
-But where **temperatureStreamsSrv** comes from? Well it is just an instance of 
+But where **temperatureStreamsSrv** comes from? It is an instance of 
 **[TemperatureStreamsService](src/main/java/com/rpozzi/kafkastreams/service/TemperatureStreamsService.java)** class, whose code is reported below 
 for reference, injected via the following Spring Boot annotation
 
@@ -169,7 +169,7 @@ props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass
 props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
 ```
 
-Then we need to:
+Then, Kafka Streams DSL requires to:
 
 - instantiate a **StreamsBuilder** class;
 - create an instance of **KStream**, calling the *StreamsBuilder.stream(<kafka_topic>)* method
@@ -182,7 +182,7 @@ final StreamsBuilder builder = new StreamsBuilder();
 KStream<String, String> sensorData = builder.stream(temperatureKafkaTopic);
 ```
 
-The above code creates a *KStream* instance called *sensorData*, bound to a specific Kafka topic: the data published to that topic are interpreted as a record stream and several transformations can then be applied to it, using Kafka Streams DSL constructs.
+The above code creates a **KStream** instance called *sensorData*, bound to a specific Kafka topic: the data published to that topic are interpreted as a record stream and several transformations can then be applied to it, using Kafka Streams DSL constructs.
 
 The data published to Kafka topic are in JSON format (see the code for a Kafka producer simulating a temperature and humidity sensor at 
 **[robipozzi-kafka-producer-java](https://github.com/robipozzi/robipozzi-kafka-producer-java)** GitHub repo and look specifically how
@@ -198,8 +198,7 @@ KStream<String, Integer> temperatures = sensorData.mapValues(value -> consumeMsg
 In Kafka Streams DSL, *mapValues()* takes one record and produces one record, modifying the value of the message, while retaining the key of the original record.
 
 As it can be seen, the new value is set by invoking *consumeMsg(value)* method (see code snippet below), which reads the JSON message and deserializes it
-into **[Sensor](src/main/java/com/rpozzi/kafkastreams/dto/Sensor.java)** object, that 
-holds a *temperature* property, accessible via its proper getter method.
+into **[Sensor](src/main/java/com/rpozzi/kafkastreams/dto/Sensor.java)** object, that holds a *temperature* property, accessible via its proper getter method.
 
 ```
 private Sensor consumeMsg(String in) {
@@ -223,9 +222,9 @@ private Sensor consumeMsg(String in) {
 }
 ```
 
-The *mapValues()* method, by its nature, creates a new stream, holding new record stream data with the transformed message.
+The *mapValues()* method, by its nature, creates a new stream (named *temperatures*), holding new record stream data with the transformed message.
  
-Now that we have a new stream, named *temperatures*, where temperature data flow, we will apply some further transformations on it to calculate the average
+Now that we have a new stream where temperature data flow, we will apply some further transformations on it to calculate the average
 temperature over a 1-minute time window, as it can be seen in code snippet below:
 
 ```
@@ -258,5 +257,6 @@ The **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/Tempe
 * **add()**: which sums temperature data and increment the count of temperature data points coming in
 * **getAverage()**: which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
 
-
-[TODO]
+Notice that the *aggregate* transformation changes the data type of key and value, and this requires to specify Serdes explicitly
+* key Serdes is set to String (notice **Serdes.String()** in Materialized clause)
+* value Serdes is set to a custom class that serializes and deserializes *TemperatureAggregate* (see **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/TemperatureAggregate.java)** class)

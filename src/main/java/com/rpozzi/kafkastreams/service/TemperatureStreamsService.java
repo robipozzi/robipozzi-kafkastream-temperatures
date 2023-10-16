@@ -89,9 +89,9 @@ public class TemperatureStreamsService {
 		
 		// ===== Apply filter transformation to select average temperatures higher than 22°
 		KStream<Windowed<String>, Double> highTemperatures = averageTemperatureStream.filter((key, value) -> value > highTemperatureThreshold);
-		highTemperatures.foreach((key, value) -> logger.info("Average temperature is higher than " + highTemperatureThreshold + "° --> !!! HIGH TEMPERATURE !!! -- " + value));
 		// ===== Print messages from highTemperatures Stream 
 		highTemperatures.foreach((key, value) -> logger.debug(key + " => " + value));
+		highTemperatures.foreach((key, value) -> logger.info("--> !!! HIGH TEMPERATURE !!! -- Average temperature is " + value + ", higher than " + highTemperatureThreshold + "°"));
 		
 		/* **************************************** */
 		/* ***** Run Streams Topology - START ***** */
