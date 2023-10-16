@@ -253,7 +253,7 @@ The code above applies the following sequence of transformations:
 
 The **[TemperatureAggregate](src/main/java/com/rpozzi/kafkastreams/service/TemperatureAggregate.java)** class exposes 2 convenient methods
 * **add()**: which sums temperature data and increment the count of temperature data points coming in
-* **getAverage()**: which returns the average temperature (calculated as (sum of temperatures) / (count of temperature data points) in time window)
+* **getAverage()**: which returns the average temperature, calculated as (sum of temperatures) / (count of temperature data points) in time window
 
 Notice that the *aggregate* transformation changes the data type of key and value, and this requires to specify Serdes explicitly
 * key Serdes is set to String (notice **Serdes.String()** in Materialized clause)
