@@ -9,14 +9,13 @@
 ## Introduction
 This repository holds the code for experimentations on Kafka Streams technology.
 
-It implements a sample Kafka Streams application which continuously reads data published to *temperatures* Kafka topic and then manipulates, analyzes and acts upon
-manipulated data.
+It implements a sample Kafka Streams application which continuously reads data published to *temperatures* Kafka topic and then manipulates, analyzes and acts upon manipulated data.
 
 The Kafka Streams application is depicted at high level in the following picture.
 
 ![](img/kafkastreams-app.png)
 
-An application which simulates a sensor reading temperature and humidity data and publish to Kafka topic is available in my other code repository 
+An application which simulates a sensor that reads temperature and humidity data and publishes them to Kafka topic is available in my other code repository 
 **https://github.com/robipozzi/robipozzi-kafka-producer-java**.
 
 To access the code, open a Terminal and start by cloning this repository with the following commands:
@@ -28,8 +27,7 @@ git clone https://github.com/robipozzi/robipozzi-kafkastreams-temperatures
 ```
 
 ## Setup and run Kafka
-To see how a Kafka producer works, you will need to setup a few things in advance, such as a Kafka cluster to interact with and Kafka topic to produce and consume 
-messages; also it could be useful to have some Kafka consumers to test the messages have been correctly produced by our Kafka producer: everything is 
+To see how a Kafka producer works, you will need to setup a few things in advance, such as a Kafka cluster to interact with and Kafka topic to produce and consume messages; also it could be useful to have some Kafka consumers to test the messages have been correctly produced by our Kafka producer: everything is 
 already described in details in this GitHub repository https://github.com/robipozzi/robipozzi-kafka, you will find pointers to the appropriate content in the 
 paragraphs below.
 
