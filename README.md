@@ -184,7 +184,7 @@ The above code creates a **KStream** instance called *sensorData*, bound to a sp
 
 The data published to Kafka topic are in JSON format (see the code for a Kafka producer simulating a temperature and humidity sensor at 
 **[robipozzi-kafka-producer-java](https://github.com/robipozzi/robipozzi-kafka-producer-java)** GitHub repo and look specifically how
-**[TemperatureSensorSimulationService](src/main/java/com/rpozzi/kafka/service/TemperatureSensorSimulationService.java)** works).
+**[TemperatureSensorSimulationService](https://github.com/robipozzi/robipozzi-kafka-producer-java/blob/main/src/main/java/com/rpozzi/kafka/service/TemperatureSensorSimulationService.java)** works).
 
 The first transformation is aimed at extracting the temperature data from the message, and this is done by using *mapValues()* Kafka Streams stateless transformation as it can be seen below
 
