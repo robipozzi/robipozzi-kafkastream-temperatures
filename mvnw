@@ -69,6 +69,8 @@ case "`uname`" in
     fi
     ;;
 esac
+ 
+# echo "***** Set JAVA_HOME = $JAVA_HOME"
 
 if [ -z "$JAVA_HOME" ] ; then
   if [ -r /etc/gentoo-release ] ; then
@@ -90,7 +92,7 @@ if [ -z "$M2_HOME" ] ; then
       PRG="`dirname "$PRG"`/$link"
     fi
   done
-
+  
   saveddir=`pwd`
 
   M2_HOME=`dirname "$PRG"`/..
@@ -101,6 +103,8 @@ if [ -z "$M2_HOME" ] ; then
   cd "$saveddir"
   # echo Using m2 at $M2_HOME
 fi
+
+# echo "***** Set M2_HOME = $M2_HOME"
 
 # For Cygwin, ensure paths are in UNIX format before anything is touched
 if $cygwin ; then
@@ -306,6 +310,10 @@ MAVEN_CMD_LINE_ARGS="$MAVEN_CONFIG $@"
 export MAVEN_CMD_LINE_ARGS
 
 WRAPPER_LAUNCHER=org.apache.maven.wrapper.MavenWrapperMain
+
+echo "--> Running with JAVA_HOME = $JAVA_HOME"
+echo "--> Running with M2_HOME = $M2_HOME"
+echo "--> Running with MAVEN_PROJECTBASEDIR = $MAVEN_PROJECTBASEDIR"
 
 exec "$JAVACMD" \
   $MAVEN_OPTS \
