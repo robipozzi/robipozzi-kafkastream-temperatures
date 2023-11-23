@@ -3,6 +3,9 @@ package com.rpozzi.kafkastreams.service;
 import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -24,6 +27,7 @@ import com.rpozzi.kafkastreams.dto.Sensor;
 @Service
 public class TemperatureStreamsService {
 	private static final Logger logger = LoggerFactory.getLogger(TemperatureStreamsService.class);
+	private static final String SSL_SECURITY_PROTOCOL = "SSL";
 	@Value(value = "${spring.kafka.bootstrap-servers}")
 	private String kafkaBootstrapServers;
 	@Value(value = "${kafkastreams.application.id}")
@@ -33,6 +37,13 @@ public class TemperatureStreamsService {
 	private int windowSizeMinutes = 1;
 	private int gracePeriodMinutes = 1;
 	private int highTemperatureThreshold = 23;
+	// SSL configuration properties
+	@Value(value = "${spring.kafka.security.protocol}")
+	private String securityProtocol;
+	@Value(value = "${spring.kafka.ssl.trust-store-location}")
+	private String truststore;
+	@Value(value = "${spring.kafka.ssl.trust-store-password}")
+	private String truststorePassword;
 
 	public void process() {
 		// ################################################################################
@@ -43,6 +54,12 @@ public class TemperatureStreamsService {
 		props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootstrapServers);
 		props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
 		props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+		/* ==== If SSL is enabled, set SSL properties ==== */
+		if (securityProtocol.equals(TemperatureStreamsService.SSL_SECURITY_PROTOCOL)) {
+			props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
+			props.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, truststore);
+			props.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, truststorePassword);
+		}
 
 		// Initialize StreamsBuilder
 		final StreamsBuilder builder = new StreamsBuilder();
