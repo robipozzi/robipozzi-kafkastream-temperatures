@@ -3,7 +3,7 @@ source ./setenv.sh $1 $2
 ##### Variable section - START
 SCRIPT=run-temperature-streams.sh
 DEFAULT_TRUSTSTORE=$HOME/opt/robipozzi-kafka/ssl/kafka.client.truststore.jks
-JAR_NAME=robipozzi-kafkastream-temperatures
+JAR_NAME=robipozzi-kafkastreams-temperatures
 VERSION=0.0.1-SNAPSHOT
 ##### Variable section - END
 
